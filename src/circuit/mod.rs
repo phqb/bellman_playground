@@ -3,23 +3,25 @@ use bellman::{pairing::Engine, Circuit, ConstraintSystem, Field, SynthesisError,
 #[derive(Clone)]
 pub struct Bit {
     var: Variable,
-    value: bool,
+    value: Option<bool>,
 }
 
 impl Bit {
-    fn alloc<E, CS>(value: bool, cs: &mut CS, zero: Variable) -> Result<Self, SynthesisError>
+    fn alloc<E, CS>(
+        value: Option<bool>,
+        cs: &mut CS,
+        zero: Variable,
+    ) -> Result<Self, SynthesisError>
     where
         E: Engine,
         CS: ConstraintSystem<E>,
     {
         let var = cs.alloc(
             || "bit",
-            || {
-                if value {
-                    Ok(E::Fr::one())
-                } else {
-                    Ok(E::Fr::zero())
-                }
+            || match value {
+                Some(true) => Ok(E::Fr::one()),
+                Some(false) => Ok(E::Fr::zero()),
+                None => Err(SynthesisError::AssignmentMissing),
             },
         )?;
 
@@ -40,12 +42,10 @@ impl Bit {
     {
         let input = cs.alloc_input(
             || "input variable",
-            || {
-                if self.value {
-                    Ok(E::Fr::one())
-                } else {
-                    Ok(E::Fr::zero())
-                }
+            || match self.value {
+                Some(true) => Ok(E::Fr::one()),
+                Some(false) => Ok(E::Fr::zero()),
+                None => Err(SynthesisError::AssignmentMissing),
             },
         )?;
 
@@ -64,10 +64,13 @@ impl Bit {
         E: Engine,
         CS: ConstraintSystem<E>,
     {
-        let new_val = self.value ^ other.value;
         let new_var = cs.alloc(
             || "bit",
             || {
+                let val = self.value.ok_or(SynthesisError::AssignmentMissing)?;
+                let other = other.value.ok_or(SynthesisError::AssignmentMissing)?;
+                let new_val = val ^ other;
+
                 if new_val {
                     Ok(E::Fr::one())
                 } else {
@@ -83,6 +86,11 @@ impl Bit {
             |lc| lc + self.var + other.var - new_var,
         );
 
+        let new_val = match (self.value, other.value) {
+            (Some(val), Some(other)) => Some(val ^ other),
+            _ => None,
+        };
+
         Ok(Self {
             var: new_var,
             value: new_val,
@@ -93,9 +101,9 @@ impl Bit {
 /// Circuit a xor b = c
 #[derive(Clone)]
 pub struct XorCircuit {
-    pub a: bool,
-    pub b: bool,
-    pub c: bool,
+    pub a: Option<bool>,
+    pub b: Option<bool>,
+    pub c: Option<bool>,
 }
 
 impl<E: Engine> Circuit<E> for XorCircuit {

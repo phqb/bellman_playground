@@ -88,7 +88,7 @@ impl SetupForStepByStepProver {
         &self,
         circuit: C,
         vk: &PlonkVerificationKey,
-    ) -> Result<EncodedProofPlonk, failure::Error> {
+    ) -> Result<Proof<Engine, PlonkCsWidth4WithNextStepParams>, failure::Error> {
         let proof = prove_by_steps::<_, _, RollingKeccakTranscript<Fr>>(
             circuit,
             &self.hints,
@@ -101,7 +101,8 @@ impl SetupForStepByStepProver {
 
         let valid = verify::<_, RollingKeccakTranscript<Fr>>(&proof, &vk.0)?;
         failure::ensure!(valid, "proof for block is invalid");
-        Ok(serialize_proof(&proof))
+
+        Ok(proof)
     }
 }
 
